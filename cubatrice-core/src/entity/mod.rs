@@ -38,6 +38,12 @@ pub enum Item {
     DonationVictoryPoint(usize),
     /// Some Token. see token for more detailed documentation.
     Token(Token),
+    /// Not a real, instantiable item. This is the upgrade condition for charity
+    /// syndicate converters, so needs to exist as an item.
+    CrossColonizedPlanetBought,
+    /// Not a real, instantiable item. This is the upgrade condition for Kit
+    /// starting converters.
+    KitTechInvented,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

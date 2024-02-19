@@ -64,12 +64,22 @@ pub enum Phase {
     Finish,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Confluence(pub usize);
+
+impl Default for Confluence {
+    fn default() -> Self {
+        Confluence(1)
+    }
+}
+
 /// Used to track the state of the game. Modified indirectly and atomically by
 /// applying (and unapplying) records. Unapplying a record that was never
 /// applied is a logic error.
 #[derive(Debug, Default)]
 pub struct GameState {
     phase: Phase,
+    confluence: Confluence,
     data: GameData,
     licenses: BTreeMap<PlayerID, Vec<TechID>>,
     unmarked_cards: BTreeMap<PlayerID, Vec<Box<dyn Convert>>>,
@@ -110,6 +120,12 @@ pub struct GameData {
 impl GameData {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn preloaded() -> Result<Self, Error> {
+        let mut gd = Self::default();
+        gd.load_all()?;
+        Ok(gd)
     }
 
     /// Loads all data into this gameData object. not all data may be necessary

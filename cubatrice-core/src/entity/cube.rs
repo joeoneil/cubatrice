@@ -1,17 +1,16 @@
-use std::{fmt::Display, sync::Mutex};
+use std::fmt::Display;
 
-use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
 use crate::{state::player::PlayerID, Fraction};
 
+/// Transparent type for cube IDs
 #[derive(Clone, Copy, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct CubeID(usize);
+pub struct CubeID(pub usize);
 
-lazy_static! {
-    static ref NEXT_CUBE_ID: Mutex<CubeID> = Mutex::new(CubeID(0));
-}
-
+/// Different types of cube. Some cubes exist only virtually, as inputs or
+/// outputs on cards. Physical cubes that players can own can only be of
+/// certain types.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CubeType {
     /// Ships
@@ -65,6 +64,64 @@ impl CubeType {
             CubeType::Ultratech => Fraction::new(3, 1),
         }
     }
+
+    /// Checks if a cube type is a 'virtual cube'. Virtual cubes can only exist
+    /// as inputs or outputs of converters, and should never be instantiated.
+    pub fn is_virtual(&self) -> bool {
+        match *self {
+            CubeType::Ship
+            | CubeType::Culture
+            | CubeType::Food
+            | CubeType::Industry
+            | CubeType::UnitySmall
+            | CubeType::Power
+            | CubeType::Biotech
+            | CubeType::Information
+            | CubeType::UnityLarge
+            | CubeType::Ultratech => false,
+            CubeType::AnySmall
+            | CubeType::AnySmallNonUnity
+            | CubeType::AnyLarge
+            | CubeType::AnyLargeNonUnity => true,
+        }
+    }
+
+    /// checks if rhs is a valid cube if self is the input of a converter
+    pub fn matches(self, rhs: Self) -> bool {
+        if self == rhs {
+            true
+        } else {
+            match self {
+                CubeType::Culture | CubeType::Food | CubeType::Industry => {
+                    rhs == CubeType::UnitySmall
+                }
+                CubeType::AnySmallNonUnity => {
+                    rhs == CubeType::Culture || rhs == CubeType::Food || rhs == CubeType::Industry
+                }
+                CubeType::AnySmall => {
+                    rhs == CubeType::Culture
+                        || rhs == CubeType::Food
+                        || rhs == CubeType::Industry
+                        || rhs == CubeType::UnitySmall
+                }
+                CubeType::Power | CubeType::Biotech | CubeType::Information => {
+                    rhs == CubeType::UnityLarge
+                }
+                CubeType::AnyLargeNonUnity => {
+                    rhs == CubeType::Power
+                        || rhs == CubeType::Biotech
+                        || rhs == CubeType::Information
+                }
+                CubeType::AnyLarge => {
+                    rhs == CubeType::Power
+                        || rhs == CubeType::Biotech
+                        || rhs == CubeType::Information
+                        || rhs == CubeType::UnityLarge
+                }
+                _ => false,
+            }
+        }
+    }
 }
 
 /// represents an individual cube. We want to keep track of IDs so that cubes
@@ -82,14 +139,19 @@ pub struct Cube {
 }
 
 impl Cube {
-    pub fn new(typ: CubeType, owner: PlayerID, donation: bool) -> Self {
-        NEXT_CUBE_ID.lock().unwrap().0 += 1;
+    /// Create a new cube of a given type. ID should be unique per cube
+    /// if individual tracking is desired, but this is not enforced.
+    pub fn new(typ: CubeType, owner: PlayerID, donation: bool, id: CubeID) -> Self {
         Cube {
-            id: *NEXT_CUBE_ID.lock().unwrap(),
+            id,
             typ,
             owner,
             donation: if donation { Some(owner) } else { None },
         }
+    }
+
+    pub fn value(&self) -> Fraction {
+        self.typ.value()
     }
 }
 

@@ -1,27 +1,74 @@
+use std::num::NonZeroUsize;
+
 use serde::{Deserialize, Serialize};
 
-use super::Item;
+use super::{
+    converter::{Convert, Converter},
+    Item,
+};
 use crate::Fraction;
 
+/// Which faction a player is playing.
+// Support for custom ones might be  possible in the future, but it'd require
+// an architectural shift away from this enum and, honestly, is probably more
+// trouble than it's worth.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum FactionType {
+    /// Colony bids are halved, but colonies purchased by them produce double
+    /// outputs.
     CaylionCore,
+    /// Has interest converters that can be run by anyone other than the Eni Et
+    /// Starting economy is relatively weak to compensate.
     EniEtCore,
+    /// Has a deck of relic worlds that can be drawn, with relatively powerful
+    /// bonuses. Requires adaptability in strategy. Also has aknowledgement tokens
+    /// that give the faderan victory points when others invent tech.
     FaderanCore,
+    /// Has a very powerful starting economy, but all converters require fleet
+    /// support.
     ImdrilCore,
+    /// Starting converters are in pairs. Can play nullspace colonies for
+    /// yellow cubes.
     KitCore,
+    /// Can put special tile converters into play. Counts as an extra player
+    /// for the colony bid track, and can split their bid in two for planets.
     KjasCore,
+    /// Starting converters can consume any color of cube of the right shape
+    /// and produce wild outputs. Converters upgrade to produce wild outputs.
     UnityCore,
+    /// Techs invented by the yengii are not shared. They may license techs
+    /// to other players, and earn a reduced sharing bonus for inventing.
     YengiiCore,
+    /// Players that trade with the zeth are safe. Anyone not marked safe can
+    /// be stolen from by the Zeth during the steal phase.
     ZethCore,
+    /// Creates projects which other players can vote on.
     CaylionAlt,
+    /// Creates service tokens which reduce the input cost of white converters
+    /// by half, rounded up.
     EniEtAlt,
+    /// Does not received shared technology, does not share technology.
+    /// Invents at half cost, and sells teams with regret. Players with
+    /// regret go last in bidding.
     FaderanAlt,
+    /// Creates factories which can be placed on colonies to produce additional
+    /// resources. Requires fleet support to run converters. Starts with 5
+    /// fleet support, and cannot gain any more.
     ImdrilAlt,
+    /// Starting converters are in pairs. Creates research teams. Kit
+    /// Research teams cost an additional ultratech if invented by the Kit.
     KitAlt,
+    /// Starting resources are donations. Starting converters produce donations
+    /// and are run off of other players' donations.
     KjasAlt,
+    /// Rolls dice to determine which starting converters can be run. Produces
+    /// wild outputs.
     UnityAlt,
+    /// Sells Jii Constraints. Players with constraints cannot use that color
+    /// cube as inputs to converters or to invent techs.
     YengiiAlt,
+    /// Each other player starts with an 'undersireable' which they own but
+    /// only the Zeth can run.
     ZethAlt,
 }
 
@@ -203,3 +250,44 @@ impl FactionType {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StartingResources(pub FactionType, pub Vec<Item>);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct FactionConverterID(pub usize);
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FactionConverter {
+    id: FactionConverterID,
+    conv: Converter,
+    upgrade: Vec<Vec<Item>>,
+    tradeable: bool,
+}
+
+impl Convert for FactionConverter {
+    fn input(&self) -> &[Item] {
+        self.conv.input.as_slice()
+    }
+
+    fn output(&self) -> &[Item] {
+        self.conv.output.as_slice()
+    }
+
+    fn upgradable(&self) -> bool {
+        self.id.0 < 100
+    }
+
+    fn upgrade_opts(&self) -> Option<usize> {
+        if self.upgrade.len() > 0 {
+            Some(self.upgrade.len())
+        } else {
+            None
+        }
+    }
+
+    fn upgrade_cost(&self, alt: usize) -> Option<&[Item]> {
+        self.upgrade.get(alt).map(Vec::as_slice)
+    }
+
+    fn color(&self) -> super::converter::Arrow {
+        self.conv.color
+    }
+}

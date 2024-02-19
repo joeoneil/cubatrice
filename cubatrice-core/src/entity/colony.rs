@@ -5,6 +5,7 @@ use super::{
     Item,
 };
 
+/// Transparent usize type for referring to specific colonies.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ColonyID(pub usize);
 
@@ -24,14 +25,21 @@ pub enum ColonyType {
     Any,
 }
 
-///
+/// Colony which produces resources
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Colony {
+    /// Name of the colony. Used only for display.
     pub name: String,
+    /// unique id for the colony data.
     pub id: ColonyID,
+    /// color of the colony. See ColonyType.
     pub typ: ColonyType,
+    /// Internal converter for the planet. Resources generated and consumed
+    /// are dependent on `conv`
     #[serde(flatten)]
     pub conv: Converter,
+    /// Cost to upgrade. If the planet is already upgraded, this is None if
+    /// the planet has been upgraded.
     pub up_cost: Option<Vec<Item>>,
 }
 

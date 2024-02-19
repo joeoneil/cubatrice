@@ -82,6 +82,19 @@ impl Fraction {
     }
 }
 
+impl PartialOrd for Fraction {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some((self.n * self.d).cmp(&(self.d * other.n)))
+    }
+}
+
+impl Ord for Fraction {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        // guaranteed to never panic. See 6 lines up.
+        self.partial_cmp(other).unwrap()
+    }
+}
+
 impl Display for Fraction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
