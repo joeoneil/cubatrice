@@ -6,7 +6,7 @@ use super::{
 };
 
 /// Transparent usize type for referring to specific colonies.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ColonyID(pub usize);
 
 /// Which biome type a colony is. Some converters or upgrades care about

@@ -7,7 +7,9 @@ use crate::Fraction;
 use super::{cube::CubeType, Item};
 
 /// Transparent type for referring to a specific converter.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 pub struct ConverterID(pub usize);
 
 /// Used for determining when a converter can be run

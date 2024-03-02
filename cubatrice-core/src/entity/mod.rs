@@ -11,7 +11,7 @@ pub mod faction;
 pub mod technology;
 
 /// Item is used in a lot of places where we need a generic item. For example,
-/// the inputs / outputs of converters, upgrades for converters,
+/// the inputs / outputs of converters, upgrades for converters, or trades.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Item {
     /// Some number of cubes with a given type and quantity
@@ -44,6 +44,9 @@ pub enum Item {
     /// Not a real, instantiable item. This is the upgrade condition for Kit
     /// starting converters.
     KitTechInvented,
+    /// The License to use a technology, granted by the yengii. This is
+    /// exclusively used in trades, for what should be obvious reasons.
+    License(TechID),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

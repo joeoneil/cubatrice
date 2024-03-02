@@ -1,23 +1,27 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{HashMap, HashSet},
     fs,
 };
 
 use anyhow::Error;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     entity::{
         colony::{Colony, ColonyID},
-        converter::Convert,
-        cube::Cube,
+        converter::{Convert, ConverterID},
+        cube::{Cube, CubeID, CubeRecord, CubeType},
         faction::{FactionType, StartingResources},
         technology::{ConverterPrototype, TechID, Technology},
         Item,
     },
-    DATA_DIR,
+    Deck, DATA_DIR,
 };
 
-use self::player::PlayerID;
+use self::{
+    player::PlayerID,
+    record::{Record, RecordID, RecordType},
+};
 
 /// I don't think this module is actually necessary, but I'm not deleting it
 /// yet in case I want to move some information out into player structs.
@@ -32,7 +36,7 @@ pub mod player;
 pub mod record;
 
 /// Which phase the game is currently in
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub enum Phase {
     /// Initialization phase before the game has started. GameState is still
     /// setting up in this phase, creating starting resources, adding players
@@ -78,15 +82,71 @@ impl Default for Confluence {
 /// applied is a logic error.
 #[derive(Debug, Default)]
 pub struct GameState {
+    /// Which phase the game is currently in.
     phase: Phase,
+    /// Which confluence the game is currently in
     confluence: Confluence,
+    /// Game data for specific converters, techs, planets, etc.
     data: GameData,
-    licenses: BTreeMap<PlayerID, Vec<TechID>>,
-    unmarked_cards: BTreeMap<PlayerID, Vec<Box<dyn Convert>>>,
-    marked_card: BTreeMap<PlayerID, Vec<Box<dyn Convert>>>,
-    cubes: BTreeMap<PlayerID, Vec<Cube>>,
-    colonies: BTreeMap<PlayerID, Vec<Colony>>,
-    factions: BTreeMap<PlayerID, FactionType>,
+
+    /// Techs waiting to be shared at the sharing phase.
+    to_share: Vec<TechID>,
+    /// Which techs the yengii hold the license to
+    yengii_techs: Vec<TechID>,
+
+    /// The current deck of technologies, shuffled then sorted by tier.
+    tech_deck: Deck<TechID>,
+    /// The current deck of planets, shuffled.
+    colony_deck: Deck<ColonyID>,
+
+    /// A Map from converter IDs to real converters.
+    converters: HashMap<ConverterID, Box<dyn Convert>>,
+    /// A Map from converters to their current owners.
+    converter_owners: HashMap<ConverterID, PlayerID>,
+    /// If converters are temporarily transferred, their original owners
+    /// are listed here, and will be returned at after the economy phase.
+    original_owners: HashMap<ConverterID, PlayerID>,
+    /// whether the converter can be traded. If not it will be in this hashset.
+    untradable_converters: HashSet<ConverterID>,
+
+    /// Map from cubeID to each cube
+    cubes: HashMap<CubeID, Cube>,
+    /// Map from CubeID to its owner
+    cube_owners: HashMap<CubeID, PlayerID>,
+
+    /// Who owns which tech team, if not yet invented.
+    tech_team_owners: HashMap<TechID, PlayerID>,
+
+    /// How many victory points each player has.
+    victory_points: HashMap<PlayerID, usize>,
+
+    /// How many ships a player bid for colonies, and an optional second bid.
+    player_colony_bid: HashMap<PlayerID, (usize, Option<usize>)>,
+    /// How many ships a player bid for techs, and an optional second bid.
+    player_tech_bid: HashMap<PlayerID, (usize, Option<usize>)>,
+    /// Which colonies are on the bid track. If colonies are not in the process
+    /// of being doled out, all options will be Some.
+    colony_bid_track: Vec<Option<ColonyID>>,
+    /// The order of players colony bids.
+    colony_bid_order: Vec<PlayerID>,
+    /// The order of players tech bids.
+    tech_bid_order: Vec<PlayerID>,
+    /// Which techs are on the bid track. If techs are not in the process of
+    /// being doles out, all options will be Some.
+    tech_bid_track: Vec<Option<ColonyID>>,
+
+    /// The colonies that exist in the game
+    colonies: HashMap<ColonyID, Colony>,
+    /// Who owns which colony, if it exists
+    colony_owners: HashMap<ColonyID, PlayerID>,
+    /// The particular faction a player is.
+    factions: HashMap<PlayerID, FactionType>,
+
+    next_cube_id: CubeID,
+    next_converter_id: ConverterID,
+    next_record_id: RecordID,
+
+    records: Vec<Record>,
 }
 
 impl GameState {
@@ -103,6 +163,116 @@ impl GameState {
     /// Sets the game data for a given game.
     pub fn set_game_data(&mut self, data: GameData) {
         self.data = data;
+    }
+
+    pub fn validate(&self, rec: &Record) -> bool {
+        match &rec.typ {
+            RecordType::CreatePlayer { player, faction } => {
+                // check that this player ID doesn't exist, and that
+                // nobody has selected this faction yet.
+                self.factions
+                    .iter()
+                    .filter(|(p, f)| **p == player || **f == faction || **f == faction.bifurcate())
+                    .count()
+                    == 0
+            }
+            RecordType::ChangePhase { to } => match to {
+                // check that we don't skip a phase. There has to be a more
+                // idiomatic way to do this.
+                Phase::Init => false,
+                Phase::Trade => self.phase == Phase::Init || self.phase == Phase::ZethSteal,
+                Phase::Economy => self.phase == Phase::Trade,
+                Phase::ColonyBid => self.phase == Phase::Economy,
+                Phase::TechBid => self.phase == Phase::ColonyBid,
+                Phase::ZethSteal => self.phase == Phase::TechBid,
+                Phase::Resolution => self.phase == Phase::Economy,
+                Phase::Finish => self.phase == Phase::Resolution,
+            },
+            RecordType::TradeCubes {
+                a,
+                b,
+                a_cubes,
+                b_cubes,
+            } => {
+                // check that each player owns all cubes involved.
+                a != b &&
+                a_cubes
+                    .iter()
+                    .all(|c| self.cube_owners.get(c).is_some_and(|id| *id == a))
+                    && b_cubes
+                        .iter()
+                        .all(|c| self.cube_owners.get(c).is_some_and(|id| *id == b))
+            }
+            RecordType::TradeColony {
+                a,
+                b,
+                a_colony,
+                b_colony,
+            } => {
+                a != b &&
+                a_colony
+                    .iter()
+                    .all(|c| self.colony_owners.get(c).is_some_and(|id| *id == a))
+                    && b_colony
+                        .iter()
+                        .all(|c| self.colony_owners.get(c).is_some_and(|id| *id == b))
+            }
+            RecordType::TradeConverter {
+                a,
+                b,
+                a_converter,
+                b_converter,
+                .. // we don't care about whether a trade is permanent
+            } => {
+                a != b &&
+                a_converter.iter().all(|c| {
+                    !self.untradable_converters.contains(c)
+                        && self.converter_owners.get(c).is_some_and(|id| *id == a)
+                }) && b_converter.iter().all(|c| {
+                    !self.untradable_converters.contains(c)
+                        && self.converter_owners.get(c).is_some_and(|id| *id == b)
+                })
+            }
+            RecordType::Bid {
+                player, for_colony, for_colony_kjas, for_tech, for_tech_faderan
+            } => {
+                let ships = self.cube_owners.iter().filter(|(_, v)| player == **v).filter_map(|(k, _)| self.cubes.get(k)).filter(|c| c.typ == CubeType::Ship).count();
+                // player has not bid for colonies yet
+                !self.player_colony_bid.contains_key(&player) 
+                    // player has not bid for techs yet
+                    && !self.player_tech_bid.contains_key(&player)
+                    // check that the player if the player bid twice, that they
+                    // are kjas and their bid is split evenly.
+                    && !for_colony_kjas.is_some_and(|b| self.factions.get(&player).unwrap_or(&FactionType::KitCore) != &FactionType::KjasCore || b.max(for_colony) - b.min(for_colony) > 1)
+                    // similar to above, but with alt faderan
+                    && !for_tech_faderan.is_some_and(|b| self.factions.get(&player).unwrap_or(&FactionType::KitCore) != &FactionType::FaderanAlt || b.max(for_tech) - b.min(for_tech) > 1)
+                    // check that the player can afford the bid.
+                    && ships >= (for_colony + for_colony_kjas.unwrap_or(0) + for_tech + for_tech_faderan.unwrap_or(0))
+            }
+            RecordType::TakeColony { player, colony } => {
+                self.colony_bid_order.get(0).is_some_and(|p| *p == player) && 
+                colony.map(|i| self.colony_bid_track.get(i).is_some()).unwrap_or(true)
+            }
+            RecordType::TakeResearch { player, tech } => {
+                self.tech_bid_order.get(0).is_some_and(|p| *p == player) && 
+                tech.map(|i| self.tech_bid_track.get(i).is_some()).unwrap_or(true)
+            }
+            RecordType::InventTech { player, tech, cost } => {
+                self.tech_team_owners.get(&tech).is_some_and(|p| *p == player) &&
+                    self.data.tech.get(&tech).is_some_and(|t| t.cost.iter().find(|t| t.typ == cost).is_some_and(|c| self.get_player_cubes(player).count_type(c.typ) >= c.qty as isize))
+            }
+            _ => todo!(),
+        }
+    }
+
+    pub fn apply(&mut self, rec: Record) {}
+
+    pub fn get_player_cubes(&self, id: PlayerID) -> CubeRecord {
+        self.cube_owners
+            .iter()
+            .filter(|(_, v)| **v == id)
+            .filter_map(|(k, _)| self.cubes.get(k))
+            .collect()
     }
 }
 
@@ -141,6 +311,8 @@ impl GameData {
             FactionType::ImdrilCore,
             FactionType::KitCore,
             FactionType::KjasCore,
+            FactionType::YengiiCore,
+            FactionType::ZethCore,
         ] {
             // eventually this will be FactionType::core() or FactionType::all()
             // but not all the factions have their converters documented (yet)

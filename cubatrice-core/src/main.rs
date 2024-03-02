@@ -18,6 +18,14 @@ use cubatrice_core::{
 fn main() {
     let gd = GameData::preloaded().unwrap();
 
+    let mut techs = gd.tech.into_values().collect::<Vec<_>>();
+
+    techs.sort_by_key(|t| t.id);
+
+    for t in techs {
+        println!("{}: {:?}", t.id.0, t.invents);
+    }
+    /*
     for i in 0..6 {
         print!("\x1b[2J\x1b[1;1H");
         println!("\x1b[1mConfluence {}\x1b[0m\n", i + 1);
@@ -65,4 +73,5 @@ fn main() {
         }
         io::stdin().read_line(&mut String::new());
     }
+    */
 }

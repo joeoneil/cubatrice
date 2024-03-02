@@ -1,10 +1,13 @@
 #![allow(dead_code)]
 
+use std::collections::VecDeque;
 use std::env;
 use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use lazy_static::lazy_static;
+use rand::seq::SliceRandom;
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 
 lazy_static! {
@@ -84,14 +87,13 @@ impl Fraction {
 
 impl PartialOrd for Fraction {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some((self.n * self.d).cmp(&(self.d * other.n)))
+        Some(self.cmp(other))
     }
 }
 
 impl Ord for Fraction {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        // guaranteed to never panic. See 6 lines up.
-        self.partial_cmp(other).unwrap()
+        (self.n * other.d).cmp(&(self.d * other.n))
     }
 }
 
@@ -214,5 +216,75 @@ fn gcd(a: isize, b: isize) -> isize {
         a
     } else {
         gcd(b, a % b)
+    }
+}
+
+#[derive(Clone, Default, Debug)]
+pub struct Deck<T> {
+    items: VecDeque<T>,
+}
+
+impl<T> Deck<T> {
+    pub fn new(items: Vec<T>) -> Self {
+        Self {
+            items: items.into(),
+        }
+    }
+
+    pub fn new_shuffled(mut items: Vec<T>) -> Self {
+        items.shuffle(&mut rand::thread_rng());
+        Self {
+            items: items.into(),
+        }
+    }
+
+    pub fn new_shuffled_with_rng<R>(mut items: Vec<T>, rng: &mut R) -> Self
+    where
+        R: RngCore,
+    {
+        items.shuffle(rng);
+        Self {
+            items: items.into(),
+        }
+    }
+
+    pub fn draw_next(&mut self) -> Option<T> {
+        self.draw_next_matches(|_| true)
+    }
+
+    pub fn draw_next_matches<P>(&mut self, pred: P) -> Option<T>
+    where
+        P: Fn(&T) -> bool,
+    {
+        if self.items.len() == 0 {
+            return None;
+        }
+        let mut item = self.items.pop_front().unwrap();
+        let mut count = 0;
+        while !pred(&item) {
+            count += 1;
+            self.items.push_back(item);
+            if count > self.items.len() {
+                return None;
+            }
+            item = self.items.pop_front().unwrap();
+        }
+        Some(item)
+    }
+
+    pub fn add_to_bottom(&mut self, item: T) {
+        self.items.push_back(item);
+    }
+
+    pub fn add_to_top(&mut self, item: T) {
+        self.items.push_front(item);
+    }
+
+    pub fn peek(&self) -> Option<&T> {
+        self.items.get(0)
+    }
+
+    pub fn len(&self) -> usize {
+        self.items.len()
     }
 }

@@ -3,11 +3,45 @@ use serde::{Deserialize, Serialize};
 use super::{
     converter::{Convert, Converter},
     cube::CubeType,
+    Item,
 };
 
 /// Transparent type for referring to techs.
-#[derive(Clone, Copy, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Default, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Serialize, Deserialize,
+)]
 pub struct TechID(pub usize);
+
+impl TechID {
+    pub fn upgrades_with(&self) -> Option<(TechID, TechID)> {
+        match self.0 {
+            1 => Some((TechID(2), TechID(6))),
+            2 => Some((TechID(1), TechID(7))),
+            3 => Some((TechID(4), TechID(5))),
+            4 => Some((TechID(3), TechID(7))),
+            5 => Some((TechID(3), TechID(6))),
+            6 => Some((TechID(4), TechID(5))),
+            7 => Some((TechID(1), TechID(2))),
+
+            8 => Some((TechID(10), TechID(12))),
+            9 => Some((TechID(11), TechID(13))),
+            10 => Some((TechID(8), TechID(14))),
+            11 => Some((TechID(10), TechID(12))),
+            12 => Some((TechID(8), TechID(11))),
+            13 => Some((TechID(9), TechID(14))),
+            14 => Some((TechID(9), TechID(13))),
+
+            15 => Some((TechID(17), TechID(21))),
+            16 => Some((TechID(18), TechID(20))),
+            17 => Some((TechID(19), TechID(21))),
+            18 => Some((TechID(16), TechID(19))),
+            19 => Some((TechID(18), TechID(20))),
+            20 => Some((TechID(15), TechID(16))),
+            21 => Some((TechID(15), TechID(17))),
+            _ => None,
+        }
+    }
+}
 
 /// Alternate cost for technology
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -68,11 +102,15 @@ impl Convert for ConverterPrototype {
     }
 
     fn upgrade_opts(&self) -> Option<usize> {
-        None
+        if self.id.0 <= 21 {
+            Some(2)
+        } else {
+            None
+        }
     }
 
     fn upgrade_cost(&self, _alt: usize) -> Option<&[super::Item]> {
-        None
+        todo!();
     }
 
     fn color(&self) -> super::converter::Arrow {

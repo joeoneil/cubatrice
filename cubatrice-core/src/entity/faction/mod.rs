@@ -1,11 +1,6 @@
-use std::num::NonZeroUsize;
-
 use serde::{Deserialize, Serialize};
 
-use super::{
-    converter::{Convert, Converter},
-    Item,
-};
+use super::Item;
 use crate::Fraction;
 
 /// Which faction a player is playing.
@@ -121,7 +116,7 @@ impl FactionType {
 
     pub fn name(&self) -> &'static str {
         match *self {
-            Self::CaylionCore => "Cayleon Plutocracy",
+            Self::CaylionCore => "Caylion Plutocracy",
             Self::EniEtCore => "Eni Et Ascendancy",
             Self::FaderanCore => "Faderan Conclave",
             Self::ImdrilCore => "Im'dril Nomads",
@@ -144,7 +139,7 @@ impl FactionType {
 
     pub fn short_name(&self) -> &'static str {
         match *self {
-            Self::CaylionCore | Self::CaylionAlt => "Cayleon",
+            Self::CaylionCore | Self::CaylionAlt => "Caylion",
             Self::EniEtCore | Self::EniEtAlt => "Eni Et",
             Self::FaderanCore | Self::FaderanAlt => "Faderan",
             Self::ImdrilCore | Self::ImdrilAlt => "Imdril",
@@ -250,44 +245,3 @@ impl FactionType {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StartingResources(pub FactionType, pub Vec<Item>);
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct FactionConverterID(pub usize);
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct FactionConverter {
-    id: FactionConverterID,
-    conv: Converter,
-    upgrade: Vec<Vec<Item>>,
-    tradeable: bool,
-}
-
-impl Convert for FactionConverter {
-    fn input(&self) -> &[Item] {
-        self.conv.input.as_slice()
-    }
-
-    fn output(&self) -> &[Item] {
-        self.conv.output.as_slice()
-    }
-
-    fn upgradable(&self) -> bool {
-        self.id.0 < 100
-    }
-
-    fn upgrade_opts(&self) -> Option<usize> {
-        if self.upgrade.len() > 0 {
-            Some(self.upgrade.len())
-        } else {
-            None
-        }
-    }
-
-    fn upgrade_cost(&self, alt: usize) -> Option<&[Item]> {
-        self.upgrade.get(alt).map(Vec::as_slice)
-    }
-
-    fn color(&self) -> super::converter::Arrow {
-        self.conv.color
-    }
-}
