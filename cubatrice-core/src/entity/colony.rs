@@ -2,11 +2,15 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     converter::{Convert, Converter},
-    Item,
+    cube::CubeType,
+    faction::alt_kit::UpgradeToken,
+    Item, Upgrade,
 };
 
 /// Transparent usize type for referring to specific colonies.
-#[derive(Clone, Copy, Default, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Default, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Serialize, Deserialize,
+)]
 pub struct ColonyID(pub usize);
 
 /// Which biome type a colony is. Some converters or upgrades care about
@@ -40,6 +44,16 @@ pub struct Colony {
     pub conv: Converter,
     /// Cost to upgrade. If the planet is already upgraded, this is None if
     /// the planet has been upgraded.
+    pub up_cost: Option<(CubeType, usize)>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OldColony {
+    pub name: String,
+    pub id: ColonyID,
+    pub typ: ColonyType,
+    #[serde(flatten)]
+    pub conv: Converter,
     pub up_cost: Option<Vec<Item>>,
 }
 
@@ -50,6 +64,29 @@ impl Convert for Colony {
 
     fn output(&self) -> &[Item] {
         self.conv.output.as_slice()
+    }
+
+    fn upgrade(&mut self, data: &crate::state::GameData, opt: usize) {
+        if self.id.0 >= 100 {
+            // already upgraded
+            return;
+        }
+        let new_data = data.colony.get(&ColonyID(self.id.0 + 100));
+        if new_data.is_none() {
+            return;
+        }
+        let Colony {
+            name,
+            id,
+            typ,
+            conv,
+            up_cost,
+        } = new_data.unwrap().clone();
+        self.name = name;
+        self.id = id;
+        self.typ = typ;
+        self.conv = conv;
+        self.up_cost = up_cost;
     }
 
     fn upgradable(&self) -> bool {
@@ -64,9 +101,17 @@ impl Convert for Colony {
         }
     }
 
-    fn upgrade_cost(&self, alt: usize) -> Option<&[Item]> {
+    fn upgrade_cost(&self, alt: usize) -> Option<Upgrade> {
         if alt == 0 {
-            self.up_cost.as_ref().map(|v| v.as_slice())
+            self.up_cost.as_ref().map(|v| Upgrade::Cubes(v.0, v.1))
+        } else {
+            None
+        }
+    }
+
+    fn upgrade_token(&self) -> Option<UpgradeToken> {
+        if self.upgradable() {
+            Some(UpgradeToken::Colony)
         } else {
             None
         }

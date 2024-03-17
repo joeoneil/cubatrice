@@ -2,9 +2,9 @@ use std::{fmt::Debug, hash::Hash};
 
 use serde::{Deserialize, Serialize};
 
-use crate::Fraction;
+use crate::{state::GameData, Fraction};
 
-use super::{cube::CubeType, Item};
+use super::{cube::CubeType, faction::alt_kit::UpgradeToken, Item, Upgrade};
 
 /// Transparent type for referring to a specific converter.
 #[derive(
@@ -48,9 +48,6 @@ pub trait Convert: Debug {
                 Item::Cubes(typ, qty) | Item::DonationCubes(typ, qty) => {
                     sum = sum + (typ.value() * (*qty) as isize)
                 }
-                Item::VictoryPoint(qty) | Item::DonationVictoryPoint(qty) => {
-                    sum = sum + (3 * qty) as isize
-                }
                 _ => continue,
             }
         }
@@ -72,11 +69,12 @@ pub trait Convert: Debug {
                 Item::Cubes(CubeType::Ship, qty) | Item::DonationCubes(CubeType::Ship, qty) => {
                     sum = sum + (*qty) as isize
                 }
+                Item::Cubes(CubeType::VictoryPoint, qty)
+                | Item::DonationCubes(CubeType::VictoryPoint, qty) => {
+                    sum = sum + (6 * qty) as isize
+                }
                 Item::Cubes(typ, qty) | Item::DonationCubes(typ, qty) => {
                     sum = sum + rate * (typ.value() * (*qty) as isize)
-                }
-                Item::VictoryPoint(qty) | Item::DonationVictoryPoint(qty) => {
-                    sum = sum + (6 * qty) as isize
                 }
                 _ => continue,
             }
@@ -97,9 +95,6 @@ pub trait Convert: Debug {
             match i {
                 Item::Cubes(typ, qty) | Item::DonationCubes(typ, qty) => {
                     sum = sum + (typ.value() * (*qty) as isize)
-                }
-                Item::VictoryPoint(qty) | Item::DonationVictoryPoint(qty) => {
-                    sum = sum + (3 * qty) as isize
                 }
                 _ => continue,
             }
@@ -122,11 +117,12 @@ pub trait Convert: Debug {
                 Item::Cubes(CubeType::Ship, qty) | Item::DonationCubes(CubeType::Ship, qty) => {
                     sum = sum + (*qty) as isize;
                 }
+                Item::Cubes(CubeType::VictoryPoint, qty)
+                | Item::DonationCubes(CubeType::VictoryPoint, qty) => {
+                    sum = sum + (6 * qty) as isize
+                }
                 Item::Cubes(typ, qty) | Item::DonationCubes(typ, qty) => {
                     sum = sum + rate * (typ.value() * (*qty) as isize)
-                }
-                Item::VictoryPoint(qty) | Item::DonationVictoryPoint(qty) => {
-                    sum = sum + (6 * qty) as isize
                 }
                 _ => continue,
             }
@@ -140,6 +136,11 @@ pub trait Convert: Debug {
         self.input().len() == 0
     }
 
+    /// Modifies the converter, upgrading it. This should be done after removing
+    /// input costs from the target player's state, as it will change the
+    /// converter.
+    fn upgrade(&mut self, _data: &GameData, _opt: usize);
+
     /// Checks whether the converter can be upgraded.
     fn upgradable(&self) -> bool;
 
@@ -150,7 +151,14 @@ pub trait Convert: Debug {
     /// The cost of upgrading this converter using a particular alternate.
     /// If the converter is upgradable and has greater than `alt` upgrade
     /// options, this is guaranteed to return Some.
-    fn upgrade_cost(&self, alt: usize) -> Option<&[Item]>;
+    fn upgrade_cost(&self, alt: usize) -> Option<Upgrade>;
+
+    /// The outputs of upgrading the converter with a given option, if any.
+    fn upgrade_outputs(&self, _alt: usize) -> Option<&[Item]> {
+        None
+    }
+
+    fn upgrade_token(&self) -> Option<UpgradeToken>;
 
     /// The color of the converter's arrow, used to determine when the
     /// converter can be run.

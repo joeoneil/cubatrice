@@ -155,17 +155,17 @@ impl Cube {
 /// A Record of some number of cubes
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct CubeRecord {
-    food: isize,
-    culture: isize,
-    industry: isize,
-    small_wild: isize,
-    biotech: isize,
-    power: isize,
-    information: isize,
-    large_wild: isize,
-    ultratech: isize,
-    ships: isize,
-    points: isize,
+    pub food: isize,
+    pub culture: isize,
+    pub industry: isize,
+    pub small_wild: isize,
+    pub biotech: isize,
+    pub power: isize,
+    pub information: isize,
+    pub large_wild: isize,
+    pub ultratech: isize,
+    pub ships: isize,
+    pub points: isize,
 }
 
 impl CubeRecord {

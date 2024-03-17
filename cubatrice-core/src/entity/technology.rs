@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    converter::{Convert, Converter},
+    converter::{Arrow, Convert, Converter},
     cube::CubeType,
-    Item,
+    faction::alt_kit::UpgradeToken,
+    Item, Upgrade,
 };
 
 /// Transparent type for referring to techs.
@@ -78,27 +79,34 @@ pub struct Technology {
 /// A converter without additional information, such as who owns it or
 /// additional faction data (such as imdril fleet cost).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-// TODO: Does this need to be prototype? other data (ownership, borrowing,
-// fleet requirements, runnable by, etc.) can maybe be handled in encapsulating
-// Game state? I'll decide this later but currently leaning toward this bit
-// being all that I need.
 pub struct ConverterPrototype {
     pub id: TechID,
+    pub name: String,
     #[serde(flatten)]
     pub conv: Converter,
 }
 
 impl Convert for ConverterPrototype {
-    fn input(&self) -> &[super::Item] {
+    fn input(&self) -> &[Item] {
         self.conv.input.as_slice()
     }
 
-    fn output(&self) -> &[super::Item] {
+    fn output(&self) -> &[Item] {
         self.conv.output.as_slice()
     }
 
+    fn upgrade(&mut self, _data: &crate::state::GameData, _opt: usize) {
+        // converter prototypes should not be upgraded, they aren't real
+        // converters, and can't know (for example) which faction's set
+        // of converters to actually pull from.
+        //
+        // upgradable, upgrade_opts, and upgrade_cost are implemented for this
+        // type as ConverterPrototype is meant to be an inner field on a more
+        // fleshed out converter.
+    }
+
     fn upgradable(&self) -> bool {
-        false
+        self.id.0 <= 21
     }
 
     fn upgrade_opts(&self) -> Option<usize> {
@@ -109,11 +117,27 @@ impl Convert for ConverterPrototype {
         }
     }
 
-    fn upgrade_cost(&self, _alt: usize) -> Option<&[super::Item]> {
-        todo!();
+    fn upgrade_cost(&self, alt: usize) -> Option<Upgrade> {
+        if alt == 0 {
+            self.id.upgrades_with().map(|t| Upgrade::ConverterCard(t.0))
+        } else if alt == 1 {
+            self.id.upgrades_with().map(|t| Upgrade::ConverterCard(t.1))
+        } else {
+            None
+        }
     }
 
-    fn color(&self) -> super::converter::Arrow {
+    fn upgrade_token(&self) -> Option<UpgradeToken> {
+        if self.id.0 <= 7 {
+            Some(UpgradeToken::TierOne)
+        } else if self.id.0 <= 14 {
+            Some(UpgradeToken::TierTwo)
+        } else {
+            None
+        }
+    }
+
+    fn color(&self) -> Arrow {
         self.conv.color
     }
 }

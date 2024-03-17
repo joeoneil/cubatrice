@@ -1,3 +1,5 @@
+use std::collections::{BTreeSet, HashSet};
+
 use serde::{Deserialize, Serialize};
 
 use crate::entity::{
@@ -28,9 +30,9 @@ pub enum RecordType {
         /// Player 'B' in the trade
         b: PlayerID,
         /// Cubes (currently) owned by A, transfered to B.
-        a_cubes: Vec<CubeID>,
+        a_cubes: BTreeSet<CubeID>,
         /// cubes (currently) owned by B, transfered to A.
-        b_cubes: Vec<CubeID>,
+        b_cubes: BTreeSet<CubeID>,
     },
     /// Colony portion of a trade. Transfers colony ownership between players
     TradeColony {
@@ -39,9 +41,9 @@ pub enum RecordType {
         /// Player 'B' in the trade
         b: PlayerID,
         /// Colonies (currently) owned by A, transferred to B.
-        a_colony: Vec<ColonyID>,
+        a_colony: BTreeSet<ColonyID>,
         /// Colonies (currently) owned by B, transferred to A.
-        b_colony: Vec<ColonyID>,
+        b_colony: BTreeSet<ColonyID>,
     },
     /// Converter portion of a trade. Transfers converter ownership between
     /// players
@@ -51,11 +53,19 @@ pub enum RecordType {
         /// Player 'B' in the trade
         b: PlayerID,
         /// Converters (currently) owned by A, transferred to A temporarily
-        a_converter: Vec<ConverterID>,
+        a_converter: BTreeSet<ConverterID>,
         /// Converters (currently) owned by B, transferred to B temporarily
-        b_converter: Vec<ConverterID>,
+        b_converter: BTreeSet<ConverterID>,
         /// Whether the trade is permanent or temporary.
         permanent: bool,
+    },
+    /// Converter portion of a trade. Transfers converter ownership between
+    /// players permentantly.
+    TradeConverterPermanently {
+        a: PlayerID,
+        b: PlayerID,
+        a_converter: BTreeSet<ConverterID>,
+        b_converter: BTreeSet<ConverterID>,
     },
     /// Creates a player with a given faction, adding them and all of their
     /// resources to the game.
@@ -63,12 +73,11 @@ pub enum RecordType {
         player: PlayerID,
         faction: FactionType,
     },
-    /// Applies a retrocontinuity token to a converter, producing its outputs
-    /// during the trade phase instead of the economy phase.
-    Retrocontinuity { converter: ConverterID },
     /// Changes the current game phase to the specified phase. Must be the
     /// phase immediately following the current phase.
-    ChangePhase { to: Phase },
+    ChangePhase {
+        to: Phase,
+    },
     /// Represents a player's bid for colonies and tech teams. Bids must be
     /// made at the same time. Base Kjas may optionally bid for two colonies,
     /// and Alt Faderan may optionally bid for two research teams.
@@ -99,13 +108,29 @@ pub enum RecordType {
         tech: TechID,
         cost: CubeType,
     },
+    UpgradeConverter {
+        conv: ConverterID,
+        opt: usize,
+    },
+    GiveAcknowledgement {
+        player: PlayerID,
+    },
+
     /// The Yengii player licensing a technology to another player
-    License { player: PlayerID, tech: TechID },
+    License {
+        player: PlayerID,
+        tech: TechID,
+    },
+    /// Applies a retrocontinuity token to a converter, producing its outputs
+    /// during the trade phase instead of the economy phase.
+    Retrocontinuity {
+        converter: ConverterID,
+    },
 }
 
 /// A Record along with its ID.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RecordGroup {
     pub id: RecordID,
-    pub typ: RecordType,
+    pub rec: Vec<RecordType>,
 }

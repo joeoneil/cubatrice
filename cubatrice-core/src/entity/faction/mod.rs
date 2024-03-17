@@ -1,7 +1,17 @@
 use serde::{Deserialize, Serialize};
 
-use super::Item;
-use crate::Fraction;
+use self::alt_kit::UpgradeToken;
+
+use super::{
+    converter::{Arrow, Convert, Converter},
+    Item, Upgrade,
+};
+use crate::{state::GameData, Fraction};
+
+pub mod alt_caylion;
+pub mod alt_kit;
+pub mod alt_unity;
+pub mod base_faderan;
 
 /// Which faction a player is playing.
 // Support for custom ones might be  possible in the future, but it'd require
@@ -245,3 +255,59 @@ impl FactionType {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StartingResources(pub FactionType, pub Vec<Item>);
+
+/// This is used for everyone's starting converters except Kit. and base Zeth.
+/// And Eni Et interest converters. And undesireables. And-
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GenericStartingConverter {
+    pub name: String,
+    pub upg_name: String,
+    pub input: Vec<Item>,
+    pub output: Vec<Item>,
+    pub upg_output: Vec<Item>,
+    pub upg_opts: Vec<Upgrade>,
+    pub tier: Option<UpgradeToken>,
+    pub upgraded: bool,
+}
+
+impl Convert for GenericStartingConverter {
+    fn input(&self) -> &[Item] {
+        self.input.as_slice()
+    }
+
+    fn output(&self) -> &[Item] {
+        if self.upgraded {
+            self.upg_output.as_slice()
+        } else {
+            self.output.as_slice()
+        }
+    }
+
+    fn upgrade(&mut self, _data: &GameData, _opt: usize) {
+        self.upgraded = true;
+    }
+
+    fn upgradable(&self) -> bool {
+        self.upgraded == false
+    }
+
+    fn upgrade_opts(&self) -> Option<usize> {
+        if self.upgradable() {
+            Some(self.upg_opts.len())
+        } else {
+            None
+        }
+    }
+
+    fn upgrade_cost(&self, alt: usize) -> Option<Upgrade> {
+        self.upg_opts.get(alt).cloned()
+    }
+
+    fn upgrade_token(&self) -> Option<UpgradeToken> {
+        self.tier
+    }
+
+    fn color(&self) -> Arrow {
+        Arrow::White
+    }
+}
