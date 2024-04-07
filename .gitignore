@@ -2,3 +2,5 @@ common/data
 common/img
 
 target/
+
+image-gen/venv
